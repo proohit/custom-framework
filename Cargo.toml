@@ -1,0 +1,13 @@
+[package]
+name = "custom-framework"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type =["cdylib"]
+name = "custom_framework_wasm"
+
+[dependencies]
+httpcodec = "0.2.3"
+bytecodec = "0.4.15"
+wasmedge_wasi_socket = { git = "https://github.com/second-state/wasmedge_wasi_socket" }
