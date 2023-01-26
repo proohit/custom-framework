@@ -9,7 +9,11 @@ import (
 	"github.com/second-state/WasmEdge-go/wasmedge"
 )
 
-func Start() {
+type Server struct {
+	vm wasmedge.VM
+}
+
+func New() Server {
 	// Expected Args[0]: program name (./bindgen_wasi)
 	// Expected Args[1]: wasm or wasm-so file (rust_bindgen_wasi_lib_bg.wasm))
 
@@ -36,8 +40,9 @@ func Start() {
 	vm.Validate()
 	vm.Instantiate()
 
-	vm.Execute("start")
+	return Server{vm: *vm}
+}
 
-	vm.Release()
-	conf.Release()
+func (s Server) Start() {
+	s.vm.Execute("start")
 }
