@@ -1,6 +1,6 @@
-use custom_framework_rust;
+use custom_framework_rust::server::Server;
 
 fn main() {
-    let server = custom_framework_rust::Server::new();
+    let server = Server::new();
     server.start();
 }
