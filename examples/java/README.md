@@ -6,6 +6,8 @@ This is a simple example of how to use the Custom Framework in Java.
 
 Move `libs/libwasmedge_jni.so` to your `$HOME/.wasmedge/lib` directory.
 
+Or build the `wasmedge-java` project on your own.
+
 ## Run
 
 ```bash
