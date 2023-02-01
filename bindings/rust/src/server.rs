@@ -1,3 +1,5 @@
+use std::env;
+
 use wasmedge_sdk::{
     config::{CommonConfigOptions, ConfigBuilder, HostRegistrationConfigOptions},
     Vm,
@@ -26,8 +28,14 @@ impl Server {
             .register_module_from_file("custom_framework", wasm_file)
             .unwrap();
 
+        let mut env_vars: Vec<String> = Vec::new();
+        for (k, v) in env::vars() {
+            let var = format!("{}={}", k, v);
+            env_vars.push(var);
+        }
+
         let mut wasi_module = vm.wasi_module().unwrap();
-        wasi_module.initialize(None, None, None);
+        wasi_module.initialize(None, Some(env_vars.iter().map(|s| &**s).collect()), None);
 
         Server { vm }
     }
