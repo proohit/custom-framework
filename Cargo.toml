@@ -10,4 +10,4 @@ name = "custom_framework_wasm"
 [dependencies]
 httpcodec = "0.2.3"
 bytecodec = "0.4.15"
-wasmedge_wasi_socket = { git = "https://github.com/second-state/wasmedge_wasi_socket" }
+wasmedge_wasi_socket = { git = "https://github.com/second-state/wasmedge_wasi_socket", rev = "5b9819a38ade6fd489060628df9cf4130dceef20" }
