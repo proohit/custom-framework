@@ -2,7 +2,6 @@ package server
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"path"
 	"path/filepath"
@@ -11,15 +10,12 @@ import (
 	"github.com/second-state/WasmEdge-go/wasmedge"
 )
 
-type response struct {
-	test string
-}
-
-var routes = map[int32]func() string{
-	0: func() string {
-		return "Hello World"
+var routes = map[int32]func(map[string]interface{}) string{
+	0: func(requestBody map[string]interface{}) string {
+		res, _ := json.Marshal(requestBody)
+		return string(res)
 	},
-	1: func() string {
+	1: func(requestBody map[string]interface{}) string {
 		return "Test"
 	},
 }
@@ -51,25 +47,23 @@ func getStringFromPointer(ptr int32, len int32, mem *wasmedge.Memory) string {
 }
 
 func handle_request_external(data interface{}, callframe *wasmedge.CallingFrame, params []interface{}) ([]interface{}, wasmedge.Result) {
-	var pathIdx = params[0].(int32)
-	var req_ptr = params[1].(int32)
-	var req_len = params[2].(int32)
+	var requestHandlerIndex = params[0].(int32)
+	var requestPointer = params[1].(int32)
+	var requestLength = params[2].(int32)
+
 	mem := callframe.GetModule().FindMemory("memory")
-	var req_body_string = getStringFromPointer(req_ptr, req_len, mem)
-	fmt.Println(req_body_string)
-	var req_body map[string]interface{}
-	json.Unmarshal([]byte(req_body_string), &req_body)
-	fmt.Println(json.Marshal(req_body))
-	var res = routes[pathIdx]()
+	var requestBodyString = getStringFromPointer(requestPointer, requestLength, mem)
+
+	var requestBody map[string]interface{}
+	json.Unmarshal([]byte(requestBodyString), &requestBody)
+
+	var res = routes[requestHandlerIndex](requestBody)
 	var resPtr = getStringPointer(res, _vm)
 
 	return []interface{}{resPtr}, wasmedge.Result_Success
 }
 
 func New() {
-	// Expected Args[0]: program name (./bindgen_wasi)
-	// Expected Args[1]: wasm or wasm-so file (rust_bindgen_wasi_lib_bg.wasm))
-
 	// Set not to print debug info
 	wasmedge.SetLogErrorLevel()
 
@@ -87,6 +81,7 @@ func New() {
 		[]string{".:."}, // The mapping preopens
 	)
 
+	// register external request handler function
 	var params = []wasmedge.ValType{
 		wasmedge.ValType_I32,
 		wasmedge.ValType_I32,
@@ -95,16 +90,15 @@ func New() {
 	var returns = []wasmedge.ValType{
 		wasmedge.ValType_I32,
 	}
-
-	// Build Host Function's parameter and return value type
 	funcAddType := wasmedge.NewFunctionType(
 		params,
 		returns)
-
 	host_handle_request_external := wasmedge.NewFunction(funcAddType, handle_request_external, nil, 0)
 	var mod = wasmedge.NewModule("env")
 	mod.AddFunction("handle_request_external", host_handle_request_external)
 	vm.RegisterModule(mod)
+
+	//load module
 	_, currentFile, _, _ := runtime.Caller(0)
 	currentDir := path.Dir(currentFile)
 	wasmPath := filepath.Join(currentDir, "/lib/custom_framework_wasm.wasm")

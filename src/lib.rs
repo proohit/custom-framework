@@ -104,9 +104,8 @@ fn respond_request(
 ) -> bytecodec::Result<Response<String>> {
     let path = req.request_target();
     let idx = controllers.get(path.as_str()).unwrap_or(&-1);
-    let req_json = serde_json::to_string(req.body()).unwrap();
-    let req_body_ptr = req_json.as_ptr() as *mut c_void;
-    let req_len = req_json.len();
+    let req_body_ptr = req.body().as_ptr() as *mut c_void;
+    let req_len = req.body().len();
     unsafe {
         let res_ptr = handle_request_external(idx.clone(), req_body_ptr, req_len);
         let raw_res = CStr::from_ptr(res_ptr as *mut i8)
