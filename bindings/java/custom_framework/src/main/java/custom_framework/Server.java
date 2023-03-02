@@ -30,13 +30,16 @@ import org.wasmedge.enums.HostRegistration;
 import org.wasmedge.enums.ValueType;
 
 public class Server {
+    private static final String ENV_MODULE_NAME = "env";
+    private static final String FRAMEWORK_MODULE_NAME = "custom_framework";
+    private static final String WASM_BINARY_PATH = "/custom_framework_wasm.wasm";
+
     WasmEdgeVm vm;
     ExecutorContext executor;
     ModuleInstanceContext frameworkModule;
     Map<Integer, Function<String, String>> ROUTES = new HashMap<>();
 
     public Server() {
-        String WASM_BINARY_PATH = "/custom_framework_wasm.wasm";
 
         try (InputStream in = getClass().getResourceAsStream(WASM_BINARY_PATH)) {
 
@@ -56,7 +59,7 @@ public class Server {
             validator.validate(astFrameworkModule);
             this.executor = new ExecutorContext(config, null);
             executor.registerImport(store, envModule);
-            this.frameworkModule = executor.register(store, astFrameworkModule, "custom_framework");
+            this.frameworkModule = executor.register(store, astFrameworkModule, FRAMEWORK_MODULE_NAME);
 
             ROUTES.put(0, (String body) -> {
                 return "Hello World!";
@@ -73,38 +76,26 @@ public class Server {
     }
 
     public String getStringFromPointer(int pointer, int length, MemoryInstanceContext memory) {
-        try {
-            byte[] data = memory.getData(pointer, length);
-            return new String(data, StandardCharsets.UTF_8);
-        } catch (Exception e) {
-            System.err.println("Could not decode data from utf8");
-        }
-
-        return null;
+        byte[] data = memory.getData(pointer, length);
+        return new String(data, StandardCharsets.UTF_8);
     }
 
     public int getStringPointer(String data) {
-        try {
-            int dataLength = data.length();
-            List<Value> params = List.of(new I32Value(dataLength + 1));
-            List<Value> returns = new ArrayList<>();
-            FunctionInstanceContext allocate = frameworkModule.findFunction("allocate");
-            executor.invoke(allocate, params, returns);
+        int dataLength = data.length();
+        List<Value> params = List.of(new I32Value(dataLength + 1));
+        List<Value> returns = new ArrayList<>();
+        FunctionInstanceContext allocate = frameworkModule.findFunction("allocate");
+        executor.invoke(allocate, params, returns);
 
-            MemoryInstanceContext mem = frameworkModule.findMemory("memory");
+        MemoryInstanceContext mem = frameworkModule.findMemory("memory");
 
-            byte[] rawData = data.getBytes(StandardCharsets.UTF_8);
-            mem.setData(rawData, ((I32Value) returns.get(0)).getValue(), rawData.length);
-            return ((I32Value) returns.get(0)).getValue();
-        } catch (Exception e) {
-            System.err.println("Could not encode data to utf8");
-        }
-
-        return -1;
+        byte[] rawData = data.getBytes(StandardCharsets.UTF_8);
+        mem.setData(rawData, ((I32Value) returns.get(0)).getValue(), rawData.length);
+        return ((I32Value) returns.get(0)).getValue();
     }
 
     private ModuleInstanceContext getEnvModule() {
-        ModuleInstanceContext envModule = new ModuleInstanceContext("env");
+        ModuleInstanceContext envModule = new ModuleInstanceContext(ENV_MODULE_NAME);
 
         FunctionTypeContext functionTypes = new FunctionTypeContext(
                 List.of(ValueType.i32, ValueType.i32, ValueType.i32),
