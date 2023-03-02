@@ -9,6 +9,7 @@ public class ServerTest {
     @Test
     public void someLibraryMethodReturnsTrue() {
         Server classUnderTest = new Server();
+        classUnderTest.addRoute(new RouteHandler("/", (request) -> "Hello World!"));
         classUnderTest.start();
     }
 }

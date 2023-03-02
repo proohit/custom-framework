@@ -4,16 +4,13 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 
 import org.wasmedge.AstModuleContext;
 import org.wasmedge.ConfigureContext;
 import org.wasmedge.ExecutorContext;
 import org.wasmedge.FunctionInstanceContext;
-import org.wasmedge.FunctionTypeContext;
 import org.wasmedge.I32Value;
 import org.wasmedge.LoaderContext;
 import org.wasmedge.MemoryInstanceContext;
@@ -24,21 +21,17 @@ import org.wasmedge.Value;
 import org.wasmedge.WasmEdge;
 import org.wasmedge.WasmEdgeVm;
 import org.wasmedge.enums.HostRegistration;
-import org.wasmedge.enums.ValueType;
 
 public class ModuleWrapper {
-    private static final String ENV_MODULE_NAME = "env";
     private static final String FRAMEWORK_MODULE_NAME = "custom_framework";
     private static final String WASM_BINARY_PATH = "/custom_framework_wasm.wasm";
 
     private ExecutorContext executor;
     private ModuleInstanceContext frameworkModule;
-    private Map<Integer, Function<String, String>> ROUTES = new HashMap<>();
+    private EnvModuleWrapper envModuleWrapper;
 
-    public ModuleWrapper() {
-
+    public ModuleWrapper(Map<Integer, RouteHandler> routes) {
         try (InputStream in = getClass().getResourceAsStream(WASM_BINARY_PATH)) {
-
             byte[] bytesArray = in.readAllBytes();
             WasmEdge.init();
             ConfigureContext config = new ConfigureContext();
@@ -47,7 +40,8 @@ public class ModuleWrapper {
             StoreContext store = new StoreContext();
             new WasmEdgeVm(config, store);
 
-            ModuleInstanceContext envModule = this.getEnvModule();
+            this.envModuleWrapper = new EnvModuleWrapper(new HandleRequestExternal(this, routes));
+            ModuleInstanceContext envModule = this.envModuleWrapper.getEnvModule();
 
             LoaderContext loader = new LoaderContext(config);
             AstModuleContext astFrameworkModule = loader.parseFromBuffer(bytesArray, bytesArray.length);
@@ -56,17 +50,13 @@ public class ModuleWrapper {
             this.executor = new ExecutorContext(config, null);
             executor.registerImport(store, envModule);
             this.frameworkModule = executor.register(store, astFrameworkModule, FRAMEWORK_MODULE_NAME);
-
-            ROUTES.put(0, (String body) -> {
-                return "Hello World!";
-            });
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
-    public void start() {
-        List<Value> params = List.of(new I32Value(getStringPointer("0:/")));
+    public void start(String controllers) {
+        List<Value> params = List.of(new I32Value(getStringPointer(controllers)));
         FunctionInstanceContext start = frameworkModule.findFunction("start");
         executor.invoke(start, params, List.of());
     }
@@ -94,22 +84,4 @@ public class ModuleWrapper {
         return frameworkModule.findMemory("memory");
     }
 
-    public Map<Integer, Function<String, String>> getROUTES() {
-        return ROUTES;
-    }
-
-    private ModuleInstanceContext getEnvModule() {
-        ModuleInstanceContext envModule = new ModuleInstanceContext(ENV_MODULE_NAME);
-
-        FunctionTypeContext functionTypes = new FunctionTypeContext(
-                List.of(ValueType.i32, ValueType.i32, ValueType.i32),
-                List.of(ValueType.i32));
-        HandleRequestExternal handlerFunction = new HandleRequestExternal(this);
-        FunctionInstanceContext hostHandleRequestExternal = new FunctionInstanceContext(
-                functionTypes,
-                handlerFunction, null, 0);
-        envModule.addFunction("handle_request_external",
-                hostHandleRequestExternal);
-        return envModule;
-    }
 }

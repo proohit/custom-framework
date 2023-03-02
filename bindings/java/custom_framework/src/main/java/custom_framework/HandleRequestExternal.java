@@ -1,6 +1,7 @@
 package custom_framework;
 
 import java.util.List;
+import java.util.Map;
 
 import org.wasmedge.HostFunction;
 import org.wasmedge.I32Value;
@@ -10,9 +11,11 @@ import org.wasmedge.Value;
 
 class HandleRequestExternal implements HostFunction {
     private final ModuleWrapper frameworkModule;
+    private final Map<Integer, RouteHandler> routes;
 
-    public HandleRequestExternal(ModuleWrapper frameworkModule) {
+    public HandleRequestExternal(ModuleWrapper frameworkModule, Map<Integer, RouteHandler> routes) {
         this.frameworkModule = frameworkModule;
+        this.routes = routes;
     }
 
     @Override
@@ -23,7 +26,7 @@ class HandleRequestExternal implements HostFunction {
 
         MemoryInstanceContext mem = frameworkModule.getMemory();
         String request = this.frameworkModule.getStringFromPointer(requestPointer, requestLength, mem);
-        String response = this.frameworkModule.getROUTES().get(requestHandlerIndex).apply(request);
+        String response = this.routes.get(requestHandlerIndex).handleRequest(request);
         int responsePointer = this.frameworkModule.getStringPointer(response);
         arg2.add(new I32Value(responsePointer));
 

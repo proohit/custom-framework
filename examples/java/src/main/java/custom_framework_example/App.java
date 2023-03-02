@@ -3,11 +3,13 @@
  */
 package custom_framework_example;
 
+import custom_framework.RouteHandler;
 import custom_framework.Server;
 
 public class App {
     public static void main(String[] args) {
         Server server = new Server();
+        server.addRoute(new RouteHandler("/", request -> request));
         server.start();
     }
 }
