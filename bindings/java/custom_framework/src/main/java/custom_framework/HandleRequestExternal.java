@@ -9,10 +9,10 @@ import org.wasmedge.Result;
 import org.wasmedge.Value;
 
 class HandleRequestExternal implements HostFunction {
-    private final Server server;
+    private final ModuleWrapper frameworkModule;
 
-    public HandleRequestExternal(Server server) {
-        this.server = server;
+    public HandleRequestExternal(ModuleWrapper frameworkModule) {
+        this.frameworkModule = frameworkModule;
     }
 
     @Override
@@ -21,10 +21,10 @@ class HandleRequestExternal implements HostFunction {
         int requestPointer = ((I32Value) arg1.get(1)).getValue();
         int requestLength = ((I32Value) arg1.get(2)).getValue();
 
-        MemoryInstanceContext mem = server.frameworkModule.findMemory("memory");
-        String request = this.server.getStringFromPointer(requestPointer, requestLength, mem);
-        String response = this.server.ROUTES.get(requestHandlerIndex).apply(request);
-        int responsePointer = this.server.getStringPointer(response);
+        MemoryInstanceContext mem = frameworkModule.getMemory();
+        String request = this.frameworkModule.getStringFromPointer(requestPointer, requestLength, mem);
+        String response = this.frameworkModule.getROUTES().get(requestHandlerIndex).apply(request);
+        int responsePointer = this.frameworkModule.getStringPointer(response);
         arg2.add(new I32Value(responsePointer));
 
         return new Result();
