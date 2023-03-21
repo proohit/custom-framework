@@ -1,6 +1,13 @@
-use custom_framework_rust::server::Server;
+use custom_framework_rust::server::{self, routes::RequestHandler};
 
 fn main() {
-    let server = Server::new();
-    server.start();
+    server::add_route(RequestHandler {
+        path: "/".to_string(),
+        handler: |request| {
+            println!("Request: {:?}", request);
+            "Hello, World!".to_string()
+        },
+    });
+
+    server::start();
 }
