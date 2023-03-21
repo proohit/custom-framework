@@ -8,11 +8,10 @@ import org.wasmedge.ModuleInstanceContext;
 import org.wasmedge.enums.ValueType;
 
 public class EnvModuleWrapper {
-    private static final String ENV_MODULE_NAME = "env";
     private ModuleInstanceContext envModule;
 
     public EnvModuleWrapper(HandleRequestExternal handleRequestExternal) {
-        this.envModule = new ModuleInstanceContext(ENV_MODULE_NAME);
+        this.envModule = new ModuleInstanceContext(Constants.EnvModuleName.getValue());
 
         FunctionTypeContext functionTypes = new FunctionTypeContext(
                 List.of(ValueType.i32, ValueType.i32, ValueType.i32),
@@ -20,7 +19,7 @@ public class EnvModuleWrapper {
         FunctionInstanceContext hostHandleRequestExternal = new FunctionInstanceContext(
                 functionTypes,
                 handleRequestExternal, null, 0);
-        envModule.addFunction("handle_request_external",
+        envModule.addFunction(Constants.HandleRequestExternalFunctionName.getValue(),
                 hostHandleRequestExternal);
     }
 

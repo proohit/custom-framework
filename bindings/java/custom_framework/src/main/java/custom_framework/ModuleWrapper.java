@@ -23,15 +23,12 @@ import org.wasmedge.WasmEdgeVm;
 import org.wasmedge.enums.HostRegistration;
 
 public class ModuleWrapper {
-    private static final String FRAMEWORK_MODULE_NAME = "custom_framework";
-    private static final String WASM_BINARY_PATH = "/custom_framework_wasm.wasm";
-
     private ExecutorContext executor;
     private ModuleInstanceContext frameworkModule;
     private EnvModuleWrapper envModuleWrapper;
 
     public ModuleWrapper(Map<Integer, RouteHandler> routes) {
-        try (InputStream in = getClass().getResourceAsStream(WASM_BINARY_PATH)) {
+        try (InputStream in = getClass().getResourceAsStream(Constants.CustomFrameworkPath.getValue())) {
             byte[] bytesArray = in.readAllBytes();
             WasmEdge.init();
             ConfigureContext config = new ConfigureContext();
@@ -49,7 +46,8 @@ public class ModuleWrapper {
             validator.validate(astFrameworkModule);
             this.executor = new ExecutorContext(config, null);
             executor.registerImport(store, envModule);
-            this.frameworkModule = executor.register(store, astFrameworkModule, FRAMEWORK_MODULE_NAME);
+            this.frameworkModule = executor.register(store, astFrameworkModule,
+                    Constants.CustomFrameworkModuleName.getValue());
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -57,7 +55,7 @@ public class ModuleWrapper {
 
     public void start(String controllers) {
         List<Value> params = List.of(new I32Value(getStringPointer(controllers)));
-        FunctionInstanceContext start = frameworkModule.findFunction("start");
+        FunctionInstanceContext start = frameworkModule.findFunction(Constants.FunctionStart.getValue());
         executor.invoke(start, params, List.of());
     }
 
@@ -70,10 +68,10 @@ public class ModuleWrapper {
         int dataLength = data.length();
         List<Value> params = List.of(new I32Value(dataLength + 1));
         List<Value> returns = new ArrayList<>();
-        FunctionInstanceContext allocate = frameworkModule.findFunction("allocate");
+        FunctionInstanceContext allocate = frameworkModule.findFunction(Constants.FunctionAllocate.getValue());
         executor.invoke(allocate, params, returns);
 
-        MemoryInstanceContext mem = frameworkModule.findMemory("memory");
+        MemoryInstanceContext mem = frameworkModule.findMemory(Constants.MemoryName.getValue());
 
         byte[] rawData = data.getBytes(StandardCharsets.UTF_8);
         mem.setData(rawData, ((I32Value) returns.get(0)).getValue(), rawData.length);
@@ -81,7 +79,7 @@ public class ModuleWrapper {
     }
 
     public MemoryInstanceContext getMemory() {
-        return frameworkModule.findMemory("memory");
+        return frameworkModule.findMemory(Constants.MemoryName.getValue());
     }
 
 }
