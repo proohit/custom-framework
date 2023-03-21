@@ -37,7 +37,7 @@ func New(requestHandlers RouteHandlerMap) ModuleWrapper {
 	//load module
 	_, currentFile, _, _ := runtime.Caller(0)
 	currentDir := path.Dir(currentFile)
-	wasmPath := filepath.Join(path.Dir(path.Dir(currentDir)), "/lib/custom_framework_wasm.wasm")
+	wasmPath := filepath.Join(path.Dir(path.Dir(currentDir)), CustomFrameworkModulePath)
 	vm.LoadWasmFile(wasmPath)
 	vm.Validate()
 	vm.Instantiate()
@@ -48,11 +48,11 @@ func New(requestHandlers RouteHandlerMap) ModuleWrapper {
 func (moduleWrapper *ModuleWrapper) GetStringPointer(data string) int32 {
 	lengthOfData := len(data)
 
-	allocateResult, _ := moduleWrapper.vm.Execute("allocate", int32(lengthOfData+1))
+	allocateResult, _ := moduleWrapper.vm.Execute(FunctionAllocate, int32(lengthOfData+1))
 	inputPointer := allocateResult[0].(int32)
 
 	module := moduleWrapper.vm.GetActiveModule()
-	mem := module.FindMemory("memory")
+	mem := module.FindMemory(MemoryName)
 	memData, _ := mem.GetData(uint(inputPointer), uint(lengthOfData+1))
 	copy(memData, data)
 
@@ -62,12 +62,12 @@ func (moduleWrapper *ModuleWrapper) GetStringPointer(data string) int32 {
 }
 
 func (moduleWrapper *ModuleWrapper) GetStringFromPointer(ptr int32, len int32) string {
-	mem := moduleWrapper.vm.GetActiveModule().FindMemory("memory")
+	mem := moduleWrapper.vm.GetActiveModule().FindMemory(MemoryName)
 	memData, _ := mem.GetData(uint(ptr), uint(len))
 	return string(memData[0:len])
 }
 
 func (moduleWrapper *ModuleWrapper) Start(routes string) {
 	var mappingPtr = moduleWrapper.GetStringPointer(routes)
-	moduleWrapper.vm.Execute("start", mappingPtr)
+	moduleWrapper.vm.Execute(FunctionStart, mappingPtr)
 }

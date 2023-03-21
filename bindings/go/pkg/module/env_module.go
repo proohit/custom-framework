@@ -16,7 +16,7 @@ func GetEnvModule(handleRequestExternal HandleRequestExternal) *wasmedge.Module 
 		params,
 		returns)
 	host_handle_request_external := wasmedge.NewFunction(funcAddType, handleRequestExternal.Handle_request_external, nil, 0)
-	var mod = wasmedge.NewModule("env")
-	mod.AddFunction("handle_request_external", host_handle_request_external)
+	var mod = wasmedge.NewModule(EnvModuleName)
+	mod.AddFunction(HandleRequestExternalFunctionName, host_handle_request_external)
 	return mod
 }
