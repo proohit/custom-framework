@@ -61,6 +61,24 @@ func (moduleWrapper *ModuleWrapper) GetStringPointer(data string) int32 {
 	return inputPointer
 }
 
+func (moduleWrapper *ModuleWrapper) GetDataPointer(data []byte) int32 {
+	lengthOfData := len(data)
+
+	allocateResult, _ := moduleWrapper.vm.Execute(FunctionAllocate, int32(lengthOfData+1))
+	inputPointer := allocateResult[0].(int32)
+
+	module := moduleWrapper.vm.GetActiveModule()
+	mem := module.FindMemory(MemoryName)
+	memData, _ := mem.GetData(uint(inputPointer), uint(lengthOfData+1))
+	copy(memData, data)
+
+	memData[lengthOfData] = 0
+
+	responseId, _ := moduleWrapper.vm.Execute("register_request_response", inputPointer, int32(lengthOfData+1))
+
+	return responseId[0].(int32)
+}
+
 func (moduleWrapper *ModuleWrapper) GetStringFromPointer(ptr int32, len int32) string {
 	mem := moduleWrapper.vm.GetActiveModule().FindMemory(MemoryName)
 	memData, _ := mem.GetData(uint(ptr), uint(len))

@@ -22,9 +22,9 @@ func CreateHandleRequestExternalHostFunction(moduleWrapper *ModuleWrapper, route
 			var requestBodyString = moduleWrapper.GetStringFromPointer(requestPointer, requestLength)
 
 			var res = routes[requestHandlerIndex].Handler(requestBodyString)
-			var resPtr = moduleWrapper.GetStringPointer(res)
+			var resId = moduleWrapper.GetDataPointer(res)
 
-			return []interface{}{resPtr}, wasmedge.Result_Success
+			return []interface{}{resId}, wasmedge.Result_Success
 		},
 	}
 }

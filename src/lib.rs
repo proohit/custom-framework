@@ -1,13 +1,21 @@
-use bytecodec::DecodeExt;
+use bytecodec::{DecodeExt, Error, ErrorKind};
 use httpcodec::{HttpVersion, ReasonPhrase, Request, RequestDecoder, Response, StatusCode};
+use once_cell::sync::Lazy;
+use std::collections::HashMap;
 use std::ffi::{c_char, c_void, CStr};
 use std::io::{Read, Write};
-use std::mem;
+use std::{mem, vec};
 use wasmedge_wasi_socket::{Shutdown, TcpListener, TcpStream};
 
 extern "C" {
-    fn handle_request_external(idx: i32, req_ptr: *mut c_void, req_len: usize) -> *mut c_void;
+    fn handle_request_external(idx: i32, req_ptr: *mut c_void, req_len: usize) -> i32;
 }
+struct ResponseInfo {
+    pointer: *mut c_void,
+    size: usize,
+}
+
+static mut RESPONSES: Lazy<HashMap<i32, ResponseInfo>> = Lazy::new(|| HashMap::new());
 
 #[no_mangle]
 pub unsafe extern "C" fn allocate(size: i32) -> *const u8 {
@@ -17,6 +25,19 @@ pub unsafe extern "C" fn allocate(size: i32) -> *const u8 {
     let pointer = buffer.as_mut_ptr();
 
     pointer as *const u8
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn register_request_response(ptr: *mut c_void, size: i32) -> i32 {
+    let idx = RESPONSES.len() as i32;
+    RESPONSES.insert(
+        idx,
+        ResponseInfo {
+            pointer: ptr,
+            size: size as usize,
+        },
+    );
+    idx
 }
 
 #[no_mangle]
@@ -55,8 +76,18 @@ fn handle_client(mut stream: TcpStream, controllers: &Controllers) -> std::io::R
 
     let response = handle_request(request_data, controllers);
 
-    let write_buf = response.to_string();
-    stream.write(write_buf.as_bytes())?;
+    let http_status_code = response.status_code().to_string();
+    let http_reason_phrase = response.reason_phrase().to_string();
+    let http_version = response.http_version().to_string();
+    let http_headers = response.header().to_string();
+    let http_body = response.body();
+    // build full http response
+    let full_response = format!(
+        "{} {} {}\r\n{}",
+        http_version, http_status_code, http_reason_phrase, http_headers
+    );
+    stream.write(full_response.as_bytes())?;
+    stream.write(http_body)?;
     stream.shutdown(Shutdown::Both)?;
     Ok(())
 }
@@ -75,7 +106,9 @@ fn read_stream_data(stream: &mut TcpStream) -> std::io::Result<Vec<u8>> {
     Ok(data)
 }
 
-fn handle_request(request_data: Vec<u8>, controllers: &Controllers) -> Response<String> {
+type BinaryResponse<'a> = Response<Vec<u8>>;
+
+fn handle_request(request_data: Vec<u8>, controllers: &Controllers) -> BinaryResponse {
     let mut decoder =
         RequestDecoder::<httpcodec::BodyDecoder<bytecodec::bytes::Utf8Decoder>>::default();
 
@@ -87,12 +120,12 @@ fn handle_request(request_data: Vec<u8>, controllers: &Controllers) -> Response<
     match raw_response {
         Ok(r) => r,
         Err(e) => {
-            let err = format!("{:?}", e);
+            let err = e.to_string();
             Response::new(
                 HttpVersion::V1_0,
                 StatusCode::new(500).unwrap(),
-                ReasonPhrase::new(err.as_str()).unwrap(),
-                err.clone(),
+                ReasonPhrase::new("").unwrap(),
+                err.as_bytes().to_vec(),
             )
         }
     }
@@ -101,29 +134,29 @@ fn handle_request(request_data: Vec<u8>, controllers: &Controllers) -> Response<
 fn respond_request(
     req: Request<String>,
     controllers: &Controllers,
-) -> bytecodec::Result<Response<String>> {
+) -> bytecodec::Result<BinaryResponse> {
     let path = req.request_target();
     let idx = controllers.get(path.as_str()).unwrap_or(&-1);
+    if idx == &-1 {
+        return Err(Error::from(ErrorKind::Other));
+    }
     let req_body_ptr = req.body().as_ptr() as *mut c_void;
     let req_len = req.body().len();
     unsafe {
-        let res_ptr = handle_request_external(idx.clone(), req_body_ptr, req_len);
-        let raw_res = CStr::from_ptr(res_ptr as *mut i8)
-            .to_str()
-            .unwrap()
-            .to_string();
-        let res = Response::new(
-            HttpVersion::V1_0,
-            StatusCode::new(200)?,
-            ReasonPhrase::new("")?,
-            format!(
-                "Hello world from WebAssembly!
+        let res_id = handle_request_external(idx.clone(), req_body_ptr, req_len);
+        let req = RESPONSES.get(&res_id).unwrap();
+        let res_ptr = req.pointer;
+        let res_len = req.size;
 
-Path: {},
-Body: {}",
-                path, raw_res,
-            ),
+        let bindings_response = vec::Vec::from_raw_parts(res_ptr as *mut u8, res_len, res_len);
+
+        let res = Response::new(
+            HttpVersion::V1_1,
+            StatusCode::new(200)?,
+            ReasonPhrase::new("OK")?,
+            bindings_response,
         );
+
         return Ok(res);
     }
 }
